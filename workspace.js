@@ -8,7 +8,7 @@
   'use strict';
 
   if (!M) throw new Error('Сначала загрузите model.js');
-  var VERSION = 2;
+  var VERSION = 3;
   var MAX_CLIENTS = 1000;
   var MAX_JSON_LENGTH = 64 * 1024 * 1024;
   var own = function (value, key) { return Object.prototype.hasOwnProperty.call(value, key); };
@@ -60,9 +60,12 @@
   function defaultData() {
     return { version: VERSION, role: null, personal: M.defaultData(), clients: [] };
   }
+  function isWorkspaceData(raw) {
+    return !!(raw && typeof raw === 'object' && !Array.isArray(raw) && (own(raw, 'role') || own(raw, 'personal') || own(raw, 'clients')));
+  }
   function validateData(raw) {
     raw = object(parse(raw), 'Данные');
-    if (raw.version !== VERSION) fail('Версия: поддерживается версия ' + VERSION);
+    if (raw.version !== 2 && raw.version !== VERSION) fail('Версия: поддерживаются версии 2 и ' + VERSION);
     var selectedRole = role(raw.role, true);
     if (!Array.isArray(raw.clients)) fail('Клиенты: ожидается список');
     if (raw.clients.length > MAX_CLIENTS) fail('Клиенты: максимум ' + MAX_CLIENTS + ' записей');
@@ -84,7 +87,7 @@
   }
   function hasPersonalData(diary) {
     var profile = diary.profile;
-    return !!(profile.fullName || profile.heightCm !== '' || profile.age !== '' || diary.weights.length || diary.workouts.length ||
+    return !!(profile.fullName || profile.heightCm !== '' || profile.age !== '' || profile.birthDate || diary.weights.length || diary.workouts.length || diary.measurementTypes.length || diary.measurements.length || diary.bodyFat.length ||
       JSON.stringify(diary.exercises) !== JSON.stringify(M.defaultData().exercises));
   }
   function createStore(adapter) {
@@ -94,7 +97,7 @@
     if (source == null || source === '') state = defaultData();
     else {
       var restored = parse(source);
-      if (restored && restored.version === 1) {
+      if (!isWorkspaceData(restored)) {
         state = defaultData();
         state.personal = M.validateData(restored);
       } else state = validateData(restored);
@@ -201,5 +204,5 @@
       importDiary: importDiary
     };
   }
-  return Object.freeze({ VERSION: VERSION, WorkspaceError: WorkspaceError, defaultData: defaultData, validateData: validateData, hasPersonalData: hasPersonalData, createStore: createStore });
+  return Object.freeze({ VERSION: VERSION, WorkspaceError: WorkspaceError, defaultData: defaultData, isWorkspaceData: isWorkspaceData, validateData: validateData, hasPersonalData: hasPersonalData, hasMeaningfulData: hasPersonalData, createStore: createStore });
 }));

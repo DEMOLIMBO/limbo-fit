@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const OFFLINE_VERSION = '1.2.1';
+  const OFFLINE_VERSION = '1.3.0';
   const $ = selector => document.querySelector(selector);
   const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const iphone = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);

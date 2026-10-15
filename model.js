@@ -6,7 +6,7 @@
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  var VERSION = 1;
+  var VERSION = 2;
   var fallbackCounter = 0;
   var own = function (value, key) { return Object.prototype.hasOwnProperty.call(value, key); };
   var clone = function (value) { return JSON.parse(JSON.stringify(value)); };
@@ -91,6 +91,31 @@
   function dateAt(value, path) {
     try { return normalizeDate(value); } catch (error) { fail(error.message, path); }
   }
+  function localToday(value) {
+    var date = value === undefined ? new Date() : value;
+    if (!(date instanceof Date) || !Number.isFinite(date.getTime())) fail('некорректная дата');
+    return String(date.getFullYear()).padStart(4, '0') + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+  }
+  function birthDate(value, asOf) {
+    if (value == null || value === '') return '';
+    var date = dateAt(value, 'Дата рождения');
+    var today = asOf === undefined ? localToday() : (asOf instanceof Date ? localToday(asOf) : dateAt(asOf, 'Текущая дата'));
+    if (date < '1900-01-01' || date > today) fail('укажите дату от 01.01.1900 до сегодняшнего дня', 'Дата рождения');
+    return date;
+  }
+  function ageOn(value, asOf) {
+    var today = asOf === undefined ? localToday() : (asOf instanceof Date ? localToday(asOf) : dateAt(asOf, 'Текущая дата'));
+    var date = birthDate(value, today);
+    if (!date) return null;
+    var age = Number(today.slice(0, 4)) - Number(date.slice(0, 4));
+    if (today.slice(5) < date.slice(5)) age -= 1;
+    return age;
+  }
+  function profileAge(profile, asOf) {
+    if (!profile) return null;
+    if (profile.birthDate) return ageOn(profile.birthDate, asOf);
+    return profile.age === '' || profile.age == null ? null : numeric(profile.age, 'Возраст', 5, 120, true, false);
+  }
   function uid() {
     var cryptoObject = typeof globalThis !== 'undefined' ? globalThis.crypto : null;
     if (cryptoObject && typeof cryptoObject.randomUUID === 'function') return cryptoObject.randomUUID();
@@ -108,8 +133,11 @@
   function defaultData() {
     return {
       version: VERSION,
-      profile: { fullName: '', heightCm: '', age: '' },
+      profile: { fullName: '', heightCm: '', age: '', birthDate: '' },
       weights: [],
+      measurementTypes: [],
+      measurements: [],
+      bodyFat: [],
       exercises: [
         { id: 'exercise-bench-press', name: 'Жим штанги лёжа', muscle: 'Грудь', notes: '', archived: false },
         { id: 'exercise-dumbbell-press', name: 'Жим гантелей сидя', muscle: 'Плечи', notes: '', archived: false },
@@ -125,24 +153,48 @@
   }
   function validateData(raw) {
     object(raw, 'Данные');
-    if (raw.version !== VERSION) fail('поддерживается версия ' + VERSION, 'Версия');
+    if (raw.version !== 1 && raw.version !== VERSION) fail('поддерживаются версии 1 и ' + VERSION, 'Версия');
+    if (raw.version === 1) {
+      raw = Object.assign({}, raw, { version: VERSION, measurementTypes: [], measurements: [], bodyFat: [] });
+    }
     var profile = object(raw.profile, 'Профиль');
+    var normalizedBirthDate = birthDate(profile.birthDate);
     var exerciseIds = new Set();
     var weightIds = new Set();
     var workoutIds = new Set();
     var sessionExerciseIds = new Set();
     var setIds = new Set();
+    var measurementTypeIds = new Set();
+    var measurementNames = new Set();
+    var measurementIds = new Set();
+    var bodyFatIds = new Set();
     var result = {
       version: VERSION,
       profile: {
         fullName: text(profile.fullName, 'ФИО', 160, false),
         heightCm: numeric(profile.heightCm, 'Рост', 50, 260, false, true),
-        age: numeric(profile.age, 'Возраст', 5, 120, true, true)
+        age: normalizedBirthDate ? '' : numeric(profile.age, 'Возраст', 5, 120, true, true),
+        birthDate: normalizedBirthDate
       },
       weights: list(raw.weights, 'История веса', 50000).map(function (entry, index) {
         var path = 'История веса[' + index + ']';
         object(entry, path);
         return { id: uniqueId(entry.id, weightIds, path + '.id'), date: dateAt(entry.date, path + '.date'), kg: bodyWeight(entry.kg, path + '.kg') };
+      }),
+      measurementTypes: list(raw.measurementTypes, 'Виды замеров', 200).map(function (entry, index) {
+        var path = 'Виды замеров[' + index + ']';
+        object(entry, path);
+        var name = text(entry.name, path + '.name', 80, true);
+        var key = name.toLocaleLowerCase('ru-RU');
+        if (measurementNames.has(key)) fail('замер с таким названием уже есть', path + '.name');
+        measurementNames.add(key);
+        return { id: uniqueId(entry.id, measurementTypeIds, path + '.id'), name: name };
+      }),
+      measurements: [],
+      bodyFat: list(raw.bodyFat, 'Процент жира', 50000).map(function (entry, index) {
+        var path = 'Процент жира[' + index + ']';
+        object(entry, path);
+        return { id: uniqueId(entry.id, bodyFatIds, path + '.id'), date: dateAt(entry.date, path + '.date'), percent: numeric(entry.percent, path + '.percent', 0, 100, false, false) };
       }),
       exercises: list(raw.exercises, 'Упражнения', 5000).map(function (entry, index) {
         var path = 'Упражнения[' + index + ']';
@@ -158,6 +210,15 @@
       }),
       workouts: []
     };
+    result.measurements = list(raw.measurements, 'История замеров', 50000).map(function (entry, index) {
+      var path = 'История замеров[' + index + ']';
+      object(entry, path);
+      var ref = identifier(entry.measurementId, path + '.measurementId');
+      if (!measurementTypeIds.has(ref)) fail('вид замера отсутствует в справочнике', path + '.measurementId');
+      var cm = numeric(entry.cm, path + '.cm', 0, 1000, false, false);
+      if (cm === 0) fail('замер должен быть больше нуля', path + '.cm');
+      return { id: uniqueId(entry.id, measurementIds, path + '.id'), measurementId: ref, date: dateAt(entry.date, path + '.date'), cm: cm };
+    });
     result.workouts = list(raw.workouts, 'Тренировки', 50000).map(function (entry, index) {
       var path = 'Тренировки[' + index + ']';
       object(entry, path);
@@ -193,6 +254,17 @@
     if (!data || !Array.isArray(data.weights) || data.weights.length === 0) return null;
     var latest = data.weights.reduce(function (best, item) { return !best || item.date >= best.date ? item : best; }, null);
     return clone(latest);
+  }
+  function latest(items) {
+    if (!Array.isArray(items) || !items.length) return null;
+    return clone(items.reduce(function (best, item) { return !best || item.date >= best.date ? item : best; }, null));
+  }
+  function currentBodyFat(data) { return latest(data && data.bodyFat); }
+  function measurementHistory(data, measurementId) {
+    return clone((data && data.measurements || []).filter(function (item) { return item.measurementId === measurementId; })).sort(function (a, b) { return b.date.localeCompare(a.date) || b.id.localeCompare(a.id); });
+  }
+  function currentMeasurement(data, measurementId) {
+    return latest((data && data.measurements || []).filter(function (item) { return item.measurementId === measurementId; }));
   }
   function summarizeDay(workout) {
     var summary = { sets: 0, reps: 0, volume: 0 };
@@ -232,7 +304,9 @@
     function get() { return clone(state); }
     function replace(raw) {
       var next = validateData(raw);
-      adapter.write(JSON.stringify(next));
+      var outcome = adapter.write(JSON.stringify(next));
+      if (outcome === false) fail('не удалось сохранить данные. Изменения не применены');
+      if (outcome && typeof outcome.then === 'function') fail('хранение данных должно быть синхронным');
       state = next;
       return get();
     }
@@ -269,6 +343,26 @@
         return transact(function (draft) { upsert(draft.weights, entry, 'Вес'); });
       },
       removeWeight: function (id) { return transact(function (draft) { remove(draft.weights, id, 'Вес'); }); },
+      saveMeasurementType: function (entry) {
+        object(entry, 'Вид замера');
+        return transact(function (draft) { upsert(draft.measurementTypes, entry, 'Вид замера'); });
+      },
+      removeMeasurementType: function (id) {
+        return transact(function (draft) {
+          remove(draft.measurementTypes, id, 'Вид замера');
+          draft.measurements = draft.measurements.filter(function (entry) { return entry.measurementId !== id; });
+        });
+      },
+      saveMeasurement: function (entry) {
+        object(entry, 'Замер');
+        return transact(function (draft) { upsert(draft.measurements, entry, 'Замер'); });
+      },
+      removeMeasurement: function (id) { return transact(function (draft) { remove(draft.measurements, id, 'Замер'); }); },
+      saveBodyFat: function (entry) {
+        object(entry, 'Процент жира');
+        return transact(function (draft) { upsert(draft.bodyFat, entry, 'Процент жира'); });
+      },
+      removeBodyFat: function (id) { return transact(function (draft) { remove(draft.bodyFat, id, 'Процент жира'); }); },
       saveExercise: function (entry) {
         object(entry, 'Упражнение');
         return transact(function (draft) {
@@ -290,5 +384,5 @@
       removeWorkout: function (id) { return transact(function (draft) { remove(draft.workouts, id, 'Тренировка'); }); }
     };
   }
-  return Object.freeze({ VERSION: VERSION, ModelError: ModelError, uid: uid, parseDecimal: parseDecimal, normalizeDate: normalizeDate, defaultData: defaultData, validateData: validateData, currentWeight: currentWeight, summarizeDay: summarizeDay, exerciseHistory: exerciseHistory, createStore: createStore });
+  return Object.freeze({ VERSION: VERSION, ModelError: ModelError, uid: uid, parseDecimal: parseDecimal, normalizeDate: normalizeDate, localToday: localToday, ageOn: ageOn, profileAge: profileAge, defaultData: defaultData, validateData: validateData, currentWeight: currentWeight, currentBodyFat: currentBodyFat, currentMeasurement: currentMeasurement, measurementHistory: measurementHistory, summarizeDay: summarizeDay, exerciseHistory: exerciseHistory, createStore: createStore });
 }));
