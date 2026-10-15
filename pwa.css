@@ -1,0 +1,10 @@
+/* iPhone safe areas and visual viewport; native APK keeps its own inset bridge. */
+:root{--page-inset:20px}@media(min-width:650px){:root{--page-inset:36px}}@media(max-width:355px){:root{--page-inset:12px}}
+.app-shell{padding-top:env(safe-area-inset-top,0px);padding-left:max(var(--page-inset),env(safe-area-inset-left,0px));padding-right:max(var(--page-inset),env(safe-area-inset-right,0px));padding-bottom:calc(108px + env(safe-area-inset-bottom,0px))}.app-shell.no-navigation{padding-bottom:calc(32px + env(safe-area-inset-bottom,0px))}
+dialog{top:calc(var(--viewport-top,0px) + var(--app-height,100vh))}.modal-header{padding-top:calc(12px + env(safe-area-inset-top,0px))}.install-guide{margin:10px 0 22px;padding:15px 17px;background:white;border:1px solid var(--line);border-radius:14px;font-size:13px;line-height:1.6}.install-guide summary{cursor:pointer;color:var(--accent);font-size:14px;font-weight:650;min-height:24px}.install-guide ol{padding-left:19px;margin:15px 0}.install-guide li+li{margin-top:8px}.install-guide p{margin-top:12px;color:var(--muted);font-size:12px}.install-guide .pwa-offline-status{color:var(--ink);font-weight:550}
+/* Remains outside diary forms and visible in Safari and Home Screen mode. */
+.pwa-offline-panel{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 20px;padding:10px 0 14px;border-bottom:1px solid var(--line)}
+.pwa-offline-copy{min-width:0;flex:1}.pwa-offline-status{font-size:13px;font-weight:650;line-height:1.45;overflow-wrap:anywhere}.pwa-offline-detail{margin-top:5px;font-size:12px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
+.pwa-offline-panel[data-state=error] .pwa-offline-status{color:var(--danger)}.pwa-offline-panel[data-state=waiting] .pwa-offline-status{color:var(--accent)}
+.pwa-offline-retry{flex:none;min-height:44px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--accent);font-size:13px;font-weight:650;line-height:1.4}
+@media(max-width:355px){.pwa-offline-panel{gap:8px;flex-wrap:wrap}.pwa-offline-copy{flex-basis:190px}.pwa-offline-retry{margin-left:auto}}
