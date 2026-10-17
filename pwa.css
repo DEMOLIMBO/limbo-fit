@@ -8,3 +8,6 @@ dialog{top:calc(var(--viewport-top,0px) + var(--app-height,100vh))}.modal-header
 .pwa-offline-panel[data-state=error] .pwa-offline-status{color:var(--danger)}.pwa-offline-panel[data-state=waiting] .pwa-offline-status{color:var(--accent)}
 .pwa-offline-retry{flex:none;min-height:44px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--accent);font-size:13px;font-weight:650;line-height:1.4}
 @media(max-width:355px){.pwa-offline-panel{gap:8px;flex-wrap:wrap}.pwa-offline-copy{flex-basis:190px}.pwa-offline-retry{margin-left:auto}}
+
+/* Ready is a compact status; loading, errors, updates and retry retain their detail. */
+.pwa-offline-panel[data-state=ready]{padding:0;margin-bottom:12px;border:0}.pwa-offline-panel[data-state=ready] .pwa-offline-status{font-size:12px;font-weight:500;color:var(--muted)}

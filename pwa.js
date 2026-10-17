@@ -1,6 +1,8 @@
 (() => {
   'use strict';
-  const OFFLINE_VERSION = '1.3.0';
+  // Native APK assets are already bundled; its viewport is managed by MainActivity.
+  if (window.AndroidStore) return;
+  const OFFLINE_VERSION = '1.4.0';
   const $ = selector => document.querySelector(selector);
   const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const iphone = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -65,11 +67,12 @@
     const old = $('#pwa-install');
     if (old) old.remove();
     const onProfile = !!$('.app-version');
-    if (!standalone() && (iphone() || onProfile)) {
+    const onWelcome = !!$('.role-options');
+    if (!standalone() && (onProfile || (iphone() && onWelcome))) {
       const guide = document.createElement('details');
       guide.id = 'pwa-install';
       guide.className = 'install-guide';
-      guide.innerHTML = '<summary>Как установить на iPhone</summary><ol><li>Откройте эту ссылку в Safari.</li><li>Нажмите «Поделиться» → «На экран “Домой”».</li><li>Оставьте «Открыть как веб-приложение» включённым, если такой переключатель есть, и нажмите «Добавить».</li><li>Первый раз откройте Limbo Fit через появившуюся иконку с интернетом. Дождитесь сообщения «Готово к работе без интернета».</li></ol><p>Записи хранятся на этом устройстве. Сохраняйте резервные копии перед очисткой данных сайта или удалением приложения.</p>';
+      guide.innerHTML = '<summary>Как установить на iPhone</summary><ol><li>В Safari: «Поделиться» → «На экран “Домой”».</li><li>Нажмите «Добавить». Если есть переключатель «Открыть как веб-приложение», оставьте его включённым.</li><li>Откройте иконку с интернетом и дождитесь сообщения «Готово к работе без интернета».</li></ol>';
       const main = $('#main');
       if (main) {
         if (onProfile) main.appendChild(guide);
